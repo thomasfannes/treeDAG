@@ -77,7 +77,7 @@ void CDEF::initialize()
     std::pair<Vit, Vit> p = boost::vertices(*graph_);
     graphVertices.assign(p.first, p.second);
 
-    // for all possible k values
+
     for(std::size_t curK = 1; curK <= k_; ++curK)
         // loop over all permutations of (graphSize choose curK)
         for(std::pair<PermIter, PermIter> p = util::make_k_ordered_permutate_range(graphVertices.begin(), graphVertices.end(), curK); p.first != p.second; ++p.first)
