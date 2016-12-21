@@ -1,0 +1,21 @@
+language: cpp
+env:
+  - BUILD_TYPE=release
+  - BUILD_TYPE=debug
+compiler:
+  - gcc
+before_install:
+# We need this line to have g++4.8 available in apt
+#  - sudo add-apt-repository -y ppa:ubunt
+#  - sudo apt-get update -qq
+install:
+  - sudo apt-get install -qq git libboost-all-dev clang gcc cmake
+# We want to compile with g++ 4.8 when rather than the default g++
+#  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.8 90
+
+script:
+  - mkdir build
+  - cd build
+  - cmake ../ && make
+  - make test
+  
