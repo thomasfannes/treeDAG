@@ -55,5 +55,8 @@ set(SOURCES
   #detail/separatorDAGConfig.cpp
 )
 
+find_package(Boost 1.53 COMPONENTS system REQUIRED)
+
 add_library(treeDAG ${SOURCES})
+target_link_libraries(treeDAG ${Boost_LIBRARIES})
 
