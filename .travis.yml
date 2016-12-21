@@ -7,13 +7,8 @@ env:
 compiler:
   - gcc
 before_install:
-# We need this line to have g++4.8 available in apt
-#  - sudo add-apt-repository -y ppa:ubunt
-#  - sudo apt-get update -qq
 install:
-  - sudo apt-get install -qq git libboost-all-dev clang gcc cmake libboost-timer libboost
-# We want to compile with g++ 4.8 when rather than the default g++
-#  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.8 90
+  - sudo apt-get install -qq git libboost-all-dev clang gcc cmake
 
 script:
   - mkdir build
