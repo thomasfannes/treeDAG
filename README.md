@@ -1,4 +1,4 @@
-# mlpp
+# treeDAG
 
 ![build][build_image]
 
