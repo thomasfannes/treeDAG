@@ -6,6 +6,7 @@ env:
   - BUILD_TYPE=debug
 compiler:
   - gcc
+  - clang
 before_install:
 install:
   - sudo apt-get install -qq git libboost-all-dev clang gcc cmake
@@ -13,6 +14,7 @@ install:
 script:
   - mkdir build
   - cd build
-  - cmake ../ && make VERBOSE=1
+  - cmake -DCMAKE_BUILD_TYPE=${BUILD_TYPE} ../ 
+  - make VERBOSE=1
   - make test
   
