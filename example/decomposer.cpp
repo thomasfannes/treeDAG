@@ -60,6 +60,23 @@ Graph create_test_graph2()
     return g;
 }
 
+Graph create_test_graph3()
+{
+    Graph g(8);
+    boost::add_edge(0, 1, g);
+    boost::add_edge(1, 2, g);
+    boost::add_edge(2, 3, g);
+    boost::add_edge(3, 0, g);
+    boost::add_edge(2, 4, g);
+    boost::add_edge(4, 5, g);
+    boost::add_edge(5, 6, g);
+    boost::add_edge(6, 7, g);
+    boost::add_edge(7, 5, g);
+
+
+    return g;
+}
+
 int main(int argc, char ** argv)
 {
     if(argc != 2)
@@ -69,8 +86,8 @@ int main(int argc, char ** argv)
     }
 
     std::size_t sz = boost::lexical_cast<std::size_t>(argv[1]);
-    Graph g = create_cyle(sz);
-//    Graph g = create_test_graph2();
+//    Graph g = create_cyle(sz);
+    Graph g = create_test_graph3();
 //    Graph g = create_path(sz);
 
 
@@ -82,7 +99,7 @@ int main(int argc, char ** argv)
         boost::timer::cpu_timer t;
         t.start();
 
-        treeDAG::Decomposer<-1, unsigned char> decomposer(&g, 2);
+        treeDAG::Decomposer decomposer(&g, 2);
         decomposer.initialize();
 
         std::vector<unsigned char> roots;

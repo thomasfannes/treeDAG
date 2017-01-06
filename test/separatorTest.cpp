@@ -18,7 +18,7 @@ BOOST_AUTO_TEST_CASE( path_test )
     for(std::size_t size = 2; size < MAX_SIZE; ++size)
     {
         Graph g = make_path(size);
-        treeDAG::SeparatorCache<1> cache(1, &g);
+        treeDAG::SeparatorCache cache(1, &g);
         cache.initialize();
 
         for(std::size_t i = 0; i < size; ++i)
@@ -43,7 +43,7 @@ BOOST_AUTO_TEST_CASE( cycle_test )
     for(std::size_t size = 2; size < MAX_SIZE; ++size)
     {
         Graph g = make_cycle(size);
-        treeDAG::SeparatorCache<2> cache(2, &g);
+        treeDAG::SeparatorCache cache(2, &g);
         cache.initialize();
 
         for(std::size_t i = 0; i < size; ++i)

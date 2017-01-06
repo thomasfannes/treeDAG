@@ -24,7 +24,7 @@ int main(int argc, char ** argv)
     std::size_t sz = boost::lexical_cast<std::size_t>(argv[1]);
     Graph g(sz);
 
-    treeDAG::SeparatorCache<1> cache(2, &g);
+    treeDAG::SeparatorCache cache(2, &g);
     cache.initialize();
 }
 

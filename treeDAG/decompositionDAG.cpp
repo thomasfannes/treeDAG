@@ -1,6 +1,3 @@
-#ifndef TREEDAG_DECOMPOSITIONDAG_HXX
-#define TREEDAG_DECOMPOSITIONDAG_HXX
-
 #include "decompositionDAG.hpp"
 
 namespace treeDAG {
@@ -9,8 +6,12 @@ namespace {
 template <typename Iterator>
 struct IteratorStreamer
 {
-    IteratorStreamer();
-    IteratorStreamer(Iterator first, Iterator last, const char * delim = ",");
+    explicit IteratorStreamer(const char * delim = ",") : delim_(delim) { }
+    IteratorStreamer(Iterator first, Iterator last, const char * delim = ",")
+        : range_(first, last),
+          delim_(delim)
+    {
+    }
 
     void operator()(std::ostream & stream) const
     {
@@ -43,10 +44,9 @@ IteratorStreamer<typename std::vector<T, Alloc>::const_iterator> make_streamer(c
 
 } //  namespace
 
-#define TDEF template <typename VertexIndexType>
 
-TDEF
-std::size_t hash_value(const SeparatorNode<VertexIndexType> & separatorNode)
+
+std::size_t hash_value(const SeparatorNode & separatorNode)
 {
     std::size_t seed = boost::hash_value(separatorNode.inactiveComponent);
     boost::hash_combine(seed, separatorNode.separator);
@@ -54,8 +54,8 @@ std::size_t hash_value(const SeparatorNode<VertexIndexType> & separatorNode)
     return seed;
 }
 
-TDEF
-std::size_t hash_value(const SubgraphNode<VertexIndexType> & subgraphNode)
+
+std::size_t hash_value(const SubgraphNode & subgraphNode)
 {
     std::size_t seed = boost::hash_value(subgraphNode.activeVertices);
     boost::hash_combine(seed, subgraphNode.activeVertices);
@@ -63,20 +63,20 @@ std::size_t hash_value(const SubgraphNode<VertexIndexType> & subgraphNode)
     return seed;
 }
 
-TDEF
-bool operator==(const SeparatorNode<VertexIndexType> & lhs, const SeparatorNode<VertexIndexType> & rhs)
+
+bool operator==(const SeparatorNode & lhs, const SeparatorNode & rhs)
 {
     return lhs.inactiveComponent == rhs.inactiveComponent && lhs.separator == rhs.separator;
 }
 
-TDEF
-bool operator==(const SubgraphNode<VertexIndexType> & lhs, const SubgraphNode<VertexIndexType> & rhs)
+
+bool operator==(const SubgraphNode & lhs, const SubgraphNode & rhs)
 {
     return lhs.activeVertices == rhs.activeVertices && lhs.otherVertices == rhs.otherVertices;
 }
 
-TDEF
-std::ostream & operator<<(std::ostream & str, const SeparatorNode<VertexIndexType> & separatorNode)
+
+std::ostream & operator<<(std::ostream & str, const SeparatorNode & separatorNode)
 {
     str << "S(" << make_streamer(separatorNode.separator, ",") << ")";
     if(separatorNode.inactiveComponent != separatorNode.NoInactiveComponentNumber())
@@ -84,18 +84,19 @@ std::ostream & operator<<(std::ostream & str, const SeparatorNode<VertexIndexTyp
     return str;
 }
 
-TDEF
-std::ostream & operator<<(std::ostream & str, const SubgraphNode<VertexIndexType> & subgraphNode)
+
+std::ostream & operator<<(std::ostream & str, const SubgraphNode & subgraphNode)
 {
     str << "G(" << make_streamer(subgraphNode.activeVertices, ", ") << "),*(" << make_streamer(subgraphNode.otherVertices, ", ") << ")";
     return str;
 }
 
-#define CDEF DecompositionDAG<VertexIndexType>
-
-TDEF
-void CDEF::addSeparatorNodes(const VertexSet & separator, const std::vector<VertexSet> & components)
+void DecompositionDAG::addSeparatorNodes(const Separation & separation)
 {
+    const VertexSet & separator = separation.separator;
+    const ComponentSet & components = separation.components;
+
+
     // reserve space for storing all the subgraph nodes
     std::vector<NodeDescriptor> compNodes(components.size(), boost::graph_traits<Structure>::null_vertex());
 
@@ -105,7 +106,7 @@ void CDEF::addSeparatorNodes(const VertexSet & separator, const std::vector<Vert
         const VertexSet & curComp = components[i];
 
         // create a new subgraph node
-        SubgraphNode<VertexSet> subgraphNode;
+        SubgraphNode subgraphNode;
         subgraphNode.activeVertices = separator;
 
         // set the other vertices
@@ -120,7 +121,7 @@ void CDEF::addSeparatorNodes(const VertexSet & separator, const std::vector<Vert
 
     // add a separator with everything active
     {
-        SeparatorNode<VertexIndexType> sepNode;
+        SeparatorNode sepNode;
         sepNode.separator = separator;
         sepNode.inactiveComponent = sepNode.NoInactiveComponentNumber();
 
@@ -136,7 +137,7 @@ void CDEF::addSeparatorNodes(const VertexSet & separator, const std::vector<Vert
     // and now add separator nodes for one-out
     for(std::size_t ignored = 0; ignored != compNodes.size(); ++ignored)
     {
-        SeparatorNode<VertexIndexType> sepNode;
+        SeparatorNode sepNode;
         sepNode.separator = separator;
         sepNode.inactiveComponent = ignored;
 
@@ -152,8 +153,8 @@ void CDEF::addSeparatorNodes(const VertexSet & separator, const std::vector<Vert
 
 }
 
-TDEF
-void CDEF::write_dot(std::ostream & stream) const
+
+void DecompositionDAG::write_dot(std::ostream & stream) const
 {
     stream << "digraph G {" << std::endl;
 
@@ -163,7 +164,7 @@ void CDEF::write_dot(std::ostream & stream) const
     // write the subgraph nodes
     for(typename SubgraphMap::right_const_iterator it = subgraphMap_.right.begin(); it != subgraphMap_.right.end(); ++it, ++curIndex)
     {
-        const SubgraphNode<VertexIndexType> & subgraph = it->first;
+        const SubgraphNode & subgraph = it->first;
         NodeDescriptor node = it->second;
 
         // write it out
@@ -179,7 +180,7 @@ void CDEF::write_dot(std::ostream & stream) const
     // write the subgraph nodes
     for(typename SeparatorMap::right_const_iterator it = separatorMap_.right.begin(); it != separatorMap_.right.end(); ++it, ++curIndex)
     {
-        const SeparatorNode<VertexIndexType> & separator = it->first;
+        const SeparatorNode & separator = it->first;
         NodeDescriptor node = it->second;
 
         // write it out
@@ -219,8 +220,8 @@ void CDEF::write_dot(std::ostream & stream) const
     stream << "}" << std::endl;
 }
 
-TDEF
-typename CDEF::NodeDescriptor CDEF::intAddSeparatorNode(const SeparatorNode<VertexIndexType> & separatorNode)
+
+DecompositionDAG::NodeDescriptor DecompositionDAG::intAddSeparatorNode(const SeparatorNode & separatorNode)
 {
     // already existing
     typename SeparatorMap::right_const_iterator it = separatorMap_.right.find(separatorNode);
@@ -234,8 +235,8 @@ typename CDEF::NodeDescriptor CDEF::intAddSeparatorNode(const SeparatorNode<Vert
     return nd;
 }
 
-TDEF
-typename CDEF::NodeDescriptor CDEF::intAddSubgraphNode(const SubgraphNode<VertexIndexType> & subgraphNode)
+
+DecompositionDAG::NodeDescriptor DecompositionDAG::intAddSubgraphNode(const SubgraphNode & subgraphNode)
 {
     // already existing
     typename SubgraphMap::right_const_iterator it = subgraphMap_.right.find(subgraphNode);
@@ -249,23 +250,17 @@ typename CDEF::NodeDescriptor CDEF::intAddSubgraphNode(const SubgraphNode<Vertex
     return nd;
 }
 
-TDEF
-bool CDEF::hasSeparatorNode(const SeparatorNode<VertexIndexType> & separatorNode) const
+
+bool DecompositionDAG::hasSeparatorNode(const SeparatorNode & separatorNode) const
 {
     return separatorMap_.right.find(separatorNode) != separatorMap_.right.end();
 }
 
-TDEF
-bool CDEF::hasSubgraphNode(const SubgraphNode<VertexIndexType> & subgraphNode) const
+
+bool DecompositionDAG::hasSubgraphNode(const SubgraphNode & subgraphNode) const
 {
     return subgraphMap_.right.find(subgraphNode) != subgraphMap_.right.end();
 }
 
 
-
-#undef TDEF
-#undef CDEF
-
 } // namespace treeDAG
-
-#endif // TREEDAG_DECOMPOSITIONDAG_HXX

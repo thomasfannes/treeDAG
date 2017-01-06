@@ -1,14 +1,24 @@
 set(SOURCES
     separatorConfig.hpp
+
     separation.hpp
-    separation.hxx
+    separation.cpp
     separator.hpp
+    separator.cpp
     separator.hxx
 
     separatorCache.hpp
-    separatorCache.hxx
+    separatorCache.cpp
+
+    decompositionDAG.hpp
+    decompositionDAG.cpp
+    decomposer.hpp
+    decomposer.hxx
+    decomposer.cpp
 
     treeDAG.cpp
+
+
 
     treeDecompositionDAG.hpp
     treeDecompositionDAG.cpp
@@ -19,10 +29,8 @@ set(SOURCES
     treeDecompositionSubgraph.hpp
     treeDecompositionSubgraph.cpp
 
-    decomposer.hpp
-    decomposer.hxx
-    decompositionDAG.hpp
-    decompositionDAG.hxx
+
+
 
 
   #separator.hpp

@@ -7,8 +7,14 @@ namespace treeDAG {
 
 struct SeparatorConfig
 {
-    typedef unsigned char                                                           VertexIndexType;
     typedef boost::adjacency_list<boost::listS, boost::vecS, boost::undirectedS>    Graph;
+    typedef std::size_t                                                             VertexIndexType;
+    typedef std::vector<VertexIndexType>                                            VertexSet;
+    typedef std::vector<VertexSet>                                                  ComponentSet;
+    typedef std::vector<VertexIndexType>                                            ComponentMap;
+
+    static VertexIndexType UnassignedVertex() { return std::numeric_limits<VertexIndexType>::max(); }
+    static VertexIndexType SeparatorVertex() { return std::numeric_limits<VertexIndexType>::max() - 1; }
 };
 
 } // treeDAG namespace
