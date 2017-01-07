@@ -55,14 +55,14 @@ void SeparatorCache::processPossibleSeparator(const std::vector<VertexIndexType>
 }
 
 
-const SeparatorCache::ComponentSet *
+const Separation *
 SeparatorCache::findSeparator(const VertexSet & separator) const
 {
     typename SeparatorMap::const_iterator it = map_.find(separator, SeparationHash(), SeparationEqual());
     if(it == map_.end())
         return 0;
 
-    return &it->components;
+    return &*it;
 }
 
 std::pair<SeparatorCache::SeparatorIterator, SeparatorCache::SeparatorIterator>

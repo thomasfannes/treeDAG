@@ -87,8 +87,8 @@ int main(int argc, char ** argv)
 
     std::size_t sz = boost::lexical_cast<std::size_t>(argv[1]);
 //    Graph g = create_cyle(sz);
-    Graph g = create_test_graph3();
-//    Graph g = create_path(sz);
+//    Graph g = create_test_graph3();
+    Graph g = create_path(sz);
 
 
 
@@ -109,18 +109,15 @@ int main(int argc, char ** argv)
         decomposer.process(roots.begin(), roots.end());
         t.stop();
 
-        times << t.elapsed().wall << ";";
+        std::cout << sz << ";" << decomposer.decompositionDAG().numberOfNodes() << ";" << decomposer.decompositionDAG().numberOfBranches() << ";" << t.elapsed().wall << std::endl;
 
         std::stringstream filename;
         filename << "test_" << sz << ".dot";
 
         std::ofstream ofs;
         ofs.open(filename.str().c_str());
+
         decomposer.writeDot(ofs);
     }
-
-
-//    std::cout << sz << ";" << times.str() << std::endl;
-
 }
 

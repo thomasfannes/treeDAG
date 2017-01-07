@@ -18,7 +18,7 @@ public:
 
     void initialize();
 
-    const ComponentSet * findSeparator(const VertexSet & separator) const;
+    const Separation * findSeparator(const VertexSet & separator) const;
     std::pair<SeparatorIterator, SeparatorIterator> separators() const;
 
 private:

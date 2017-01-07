@@ -11,6 +11,7 @@ set(SOURCES
     separatorCache.cpp
 
     decompositionDAG.hpp
+    decompositionDAG.hxx
     decompositionDAG.cpp
     decomposer.hpp
     decomposer.hxx
@@ -52,6 +53,8 @@ set(SOURCES
   #detail/config.hpp
   #detail/separatorConfig.hpp
   util/kOrderedPermutateIterator.hpp
+  util/combinationIterator.hpp
+  util/combinationIterator.hxx
   util/tvsArray.hpp
   util/tvsArray.hxx
 

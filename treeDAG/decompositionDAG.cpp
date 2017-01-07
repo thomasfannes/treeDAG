@@ -1,4 +1,7 @@
 #include "decompositionDAG.hpp"
+#include <boost/graph/topological_sort.hpp>
+#include <iostream>
+#include <stack>
 
 namespace treeDAG {
 namespace {
@@ -46,16 +49,16 @@ IteratorStreamer<typename std::vector<T, Alloc>::const_iterator> make_streamer(c
 
 
 
-std::size_t hash_value(const SeparatorNode & separatorNode)
+std::size_t hash_value(const SeparatorNodeData & separatorNode)
 {
-    std::size_t seed = boost::hash_value(separatorNode.inactiveComponent);
+    std::size_t seed = boost::hash_value(separatorNode.inactiveComponents);
     boost::hash_combine(seed, separatorNode.separator);
 
     return seed;
 }
 
 
-std::size_t hash_value(const SubgraphNode & subgraphNode)
+std::size_t hash_value(const SubgraphNodeData & subgraphNode)
 {
     std::size_t seed = boost::hash_value(subgraphNode.activeVertices);
     boost::hash_combine(seed, subgraphNode.activeVertices);
@@ -64,164 +67,145 @@ std::size_t hash_value(const SubgraphNode & subgraphNode)
 }
 
 
-bool operator==(const SeparatorNode & lhs, const SeparatorNode & rhs)
+bool operator==(const SeparatorNodeData & lhs, const SeparatorNodeData & rhs)
 {
-    return lhs.inactiveComponent == rhs.inactiveComponent && lhs.separator == rhs.separator;
+    return lhs.inactiveComponents == rhs.inactiveComponents && lhs.separator == rhs.separator;
 }
 
 
-bool operator==(const SubgraphNode & lhs, const SubgraphNode & rhs)
+bool operator==(const SubgraphNodeData & lhs, const SubgraphNodeData & rhs)
 {
     return lhs.activeVertices == rhs.activeVertices && lhs.otherVertices == rhs.otherVertices;
 }
 
 
-std::ostream & operator<<(std::ostream & str, const SeparatorNode & separatorNode)
+std::ostream & operator<<(std::ostream & str, const SeparatorNodeData & separatorNode)
 {
     str << "S(" << make_streamer(separatorNode.separator, ",") << ")";
-    if(separatorNode.inactiveComponent != separatorNode.NoInactiveComponentNumber())
-        str << " [" << separatorNode.inactiveComponent << "]";
     return str;
 }
 
 
-std::ostream & operator<<(std::ostream & str, const SubgraphNode & subgraphNode)
+std::ostream & operator<<(std::ostream & str, const SubgraphNodeData & subgraphNode)
 {
     str << "G(" << make_streamer(subgraphNode.activeVertices, ", ") << "),*(" << make_streamer(subgraphNode.otherVertices, ", ") << ")";
     return str;
 }
 
-void DecompositionDAG::addSeparatorNodes(const Separation & separation)
+const DecompositionDAG::Structure & DecompositionDAG::structure() const
 {
-    const VertexSet & separator = separation.separator;
-    const ComponentSet & components = separation.components;
+    return dag_;
+}
 
+DecompositionDAG::NodeType DecompositionDAG::nodeType(NodeDescriptor node) const
+{
+    return dag_[node];
+}
 
-    // reserve space for storing all the subgraph nodes
-    std::vector<NodeDescriptor> compNodes(components.size(), boost::graph_traits<Structure>::null_vertex());
+DecompositionDAG::NodeDescriptor DecompositionDAG::findSeparatorNode(const SeparatorNodeData & separatorNodeData) const
+{
+    SeparatorMap::right_const_iterator it = separatorMap_.right.find(separatorNodeData);
+    if(it == separatorMap_.right.end())
+        return InvalidNode();
 
-    // first add all the components
-    for(std::size_t i = 0; i < components.size(); ++i)
-    {
-        const VertexSet & curComp = components[i];
+    return it->second;
+}
 
-        // create a new subgraph node
-        SubgraphNode subgraphNode;
-        subgraphNode.activeVertices = separator;
+DecompositionDAG::NodeDescriptor DecompositionDAG::findSubgraphNode(const SubgraphNodeData & subgraphNodeData) const
+{
+    SubgraphMap::right_const_iterator it = subgraphMap_.right.find(subgraphNodeData);
+    if(it == subgraphMap_.right.end())
+        return InvalidNode();
 
-        // set the other vertices
-        for(typename VertexSet::const_iterator it = curComp.begin(); it != curComp.end(); ++it)
-            // is it a separator node?
-            if(std::find(separator.begin(), separator.end(), *it) == separator.end())
-                subgraphNode.otherVertices.push_back(*it);
+    return it->second;
+}
+const SeparatorNodeData * DecompositionDAG::separatorNodeData(NodeDescriptor separatorNode) const
+{
+    assert(nodeType(separatorNode) == NODE_Separator);
+    return &(separatorMap_.left.find(separatorNode)->second);
+}
 
-        // now create the actual node
-        compNodes[i] = intAddSubgraphNode(subgraphNode);
-    }
-
-    // add a separator with everything active
-    {
-        SeparatorNode sepNode;
-        sepNode.separator = separator;
-        sepNode.inactiveComponent = sepNode.NoInactiveComponentNumber();
-
-        // do not add it double, especially not the edges
-        if(!hasSeparatorNode(sepNode))
-        {
-            NodeDescriptor nd = intAddSeparatorNode(sepNode);
-            for(std::size_t i = 0; i < compNodes.size(); ++i)
-                boost::add_edge(nd, compNodes[i], dag_);
-        }
-    }
-
-    // and now add separator nodes for one-out
-    for(std::size_t ignored = 0; ignored != compNodes.size(); ++ignored)
-    {
-        SeparatorNode sepNode;
-        sepNode.separator = separator;
-        sepNode.inactiveComponent = ignored;
-
-        // do not add it double, especially not the edges
-        if(!hasSeparatorNode(sepNode))
-        {
-            NodeDescriptor nd = intAddSeparatorNode(sepNode);
-            for(std::size_t i = 0; i < compNodes.size(); ++i)
-                if(i != ignored)
-                    boost::add_edge(nd, compNodes[i], dag_);
-        }
-    }
-
+const SubgraphNodeData * DecompositionDAG::subgraphNodeData(NodeDescriptor subgraphNode) const
+{
+    assert(nodeType(subgraphNode) == NODE_Subgraph);
+    return &(subgraphMap_.left.find(subgraphNode)->second);
 }
 
 
+DecompositionDAG::NodeDescriptor DecompositionDAG::addSubgraph(const SubgraphNodeData & subgraphNodeData)
+{
+    if(subgraphMap_.right.find(subgraphNodeData) != subgraphMap_.right.end())
+        throw std::logic_error("DecompositionDAG: The subgraph node has already been processed");
+
+    NodeDescriptor nd = boost::add_vertex(NODE_Subgraph, dag_);
+    subgraphMap_.left.insert(std::make_pair(nd, subgraphNodeData));
+
+    return nd;
+}
+
 void DecompositionDAG::write_dot(std::ostream & stream) const
 {
+    typedef boost::graph_traits<Structure>::vertex_iterator vit;
+    typedef boost::graph_traits<Structure>::edge_iterator   eit;
+
     stream << "digraph G {" << std::endl;
 
+    // index for the index map
     std::size_t curIndex = 0;
-    boost::unordered_map<NodeDescriptor, std::size_t> subgraphNodeIndexMap;
+    boost::unordered_map<NodeDescriptor, std::size_t> nodeIndexMap;
 
-    // write the subgraph nodes
-    for(typename SubgraphMap::right_const_iterator it = subgraphMap_.right.begin(); it != subgraphMap_.right.end(); ++it, ++curIndex)
+
+
+    // write out all the nodes and give them an id
+    for(std::pair<vit, vit> p = boost::vertices(dag_); p.first != p.second; ++p.first)
     {
-        const SubgraphNode & subgraph = it->first;
-        NodeDescriptor node = it->second;
+        NodeDescriptor node = *p.first;
+        NodeType type = nodeType(node);
 
-        // write it out
-        stream << "  n" << curIndex << " [label=\"" << subgraph << "\"];" << std::endl;
+        // start the line
+        stream << "  v" << curIndex << " [label=\"";
 
-        // store the index
-        subgraphNodeIndexMap.insert(std::make_pair(node, curIndex));
+        // which type of node
+        switch(type)
+        {
+        case NODE_Subgraph:
+            stream << subgraphMap_.left.find(node)->second;
+            break;
+
+        case NODE_Separator:
+            stream << separatorMap_.left.find(node)->second;
+            break;
+
+        case NODE_Clique:
+            stream << "C(" << make_streamer(cliqueMap_.find(node)->second) << ")";
+            break;
+
+        default:
+            assert(0);
+        }
+
+        // end the line
+        stream << "\"];" << std::endl;
+
+        // store in the index map
+        nodeIndexMap.insert(std::make_pair(node, curIndex++));
     }
 
-    // reset the index
-    curIndex = 0;
-    boost::unordered_map<NodeDescriptor, std::size_t> separatorNodeIndexMap;
-    // write the subgraph nodes
-    for(typename SeparatorMap::right_const_iterator it = separatorMap_.right.begin(); it != separatorMap_.right.end(); ++it, ++curIndex)
+    // write out all the edges
+    for(std::pair<eit, eit> p =boost::edges(dag_); p.first != p.second; ++p.first)
     {
-        const SeparatorNode & separator = it->first;
-        NodeDescriptor node = it->second;
+        NodeDescriptor src = boost::source(*p.first, dag_);
+        NodeDescriptor tgt = boost::target(*p.first, dag_);
 
-        // write it out
-        stream << "  s" << curIndex << " [label=\"" << separator << "\"];" << std::endl;
-
-        // store the index
-        separatorNodeIndexMap.insert(std::make_pair(node, curIndex));
-
-        // write the edges from separator node to subgraph node
-        typedef boost::graph_traits<Structure>::adjacency_iterator adjIt;
-        for(std::pair<adjIt, adjIt> p = boost::adjacent_vertices(node, dag_); p.first != p.second; ++p.first)
-            stream << "  s" << curIndex << " -> n" << subgraphNodeIndexMap[*p.first] << ";" << std::endl;
-    }
-
-    // reset the index
-    curIndex = 0;
-
-    // and now the clique nodes (and the edges)
-    for(typename boost::unordered_map<NodeDescriptor, VertexSet>::const_iterator it = cliqueMap_.begin(); it != cliqueMap_.end(); ++it, ++curIndex)
-    {
-//        const VertexSet & clique = it->second;
-
-        // write out the node
-        stream << "  c" << curIndex << " [label=\"C\"];" << std::endl;
-
-        // and now write out the nodes
-        typedef typename boost::graph_traits<Structure>::adjacency_iterator adjIt;
-        for(std::pair<adjIt, adjIt> p = boost::adjacent_vertices(it->first, dag_); p.first != p.second; ++p.first)
-            stream << "  c" << curIndex << " -> s" << separatorNodeIndexMap[*p.first] << ";" << std::endl;
-
-        // and now the in nodes
-        typedef typename Structure::inv_adjacency_iterator invAdjIt;
-        for(std::pair<invAdjIt, invAdjIt> p = boost::inv_adjacent_vertices(it->first, dag_); p.first != p.second; ++p.first)
-            stream << "  n" << subgraphNodeIndexMap[*p.first] << " -> c" << curIndex << ";" << std::endl;
+        // write the edge
+        stream << "  v" << nodeIndexMap[src] << " -> v" << nodeIndexMap[tgt] << ";" << std::endl;
     }
 
     stream << "}" << std::endl;
 }
 
 
-DecompositionDAG::NodeDescriptor DecompositionDAG::intAddSeparatorNode(const SeparatorNode & separatorNode)
+DecompositionDAG::NodeDescriptor DecompositionDAG::findOrCreateSeparatorNode(const SeparatorNodeData & separatorNode)
 {
     // already existing
     typename SeparatorMap::right_const_iterator it = separatorMap_.right.find(separatorNode);
@@ -229,14 +213,14 @@ DecompositionDAG::NodeDescriptor DecompositionDAG::intAddSeparatorNode(const Sep
         return it->second;
 
     // add a new node
-    NodeDescriptor nd = boost::add_vertex(dag_);
+    NodeDescriptor nd = boost::add_vertex(NODE_Separator, dag_);
     separatorMap_.left.insert(std::make_pair(nd, separatorNode));
 
     return nd;
 }
 
 
-DecompositionDAG::NodeDescriptor DecompositionDAG::intAddSubgraphNode(const SubgraphNode & subgraphNode)
+DecompositionDAG::NodeDescriptor DecompositionDAG::findOrCreateSubgraphNode(const SubgraphNodeData & subgraphNode)
 {
     // already existing
     typename SubgraphMap::right_const_iterator it = subgraphMap_.right.find(subgraphNode);
@@ -244,22 +228,168 @@ DecompositionDAG::NodeDescriptor DecompositionDAG::intAddSubgraphNode(const Subg
         return it->second;
 
     // add a new node
-    NodeDescriptor nd = boost::add_vertex(dag_);
+    NodeDescriptor nd = boost::add_vertex(NODE_Subgraph, dag_);
     subgraphMap_.left.insert(std::make_pair(nd, subgraphNode));
 
     return nd;
 }
 
-
-bool DecompositionDAG::hasSeparatorNode(const SeparatorNode & separatorNode) const
+void DecompositionDAG::cleanUp()
 {
-    return separatorMap_.right.find(separatorNode) != separatorMap_.right.end();
+    typedef boost::graph_traits<Structure>::vertex_iterator vit;
+
+    // start by creating a topological sort
+    std::size_t curIndex = 0;
+    boost::unordered_map<NodeDescriptor, std::size_t> indexMap;
+    for(std::pair<vit, vit> p =boost::vertices(dag_); p.first != p.second; ++p.first)
+        indexMap.insert(std::make_pair(*p.first, curIndex++));
+
+    // sort it
+    std::vector<NodeDescriptor> sorted(boost::num_vertices(dag_), InvalidNode());
+    boost::topological_sort(dag_, sorted.begin(), boost::vertex_index_map(boost::make_assoc_property_map(indexMap)));
+
+    // keep a count map
+    boost::unordered_map<NodeDescriptor, std::size_t> countMap;
+
+
+    typedef boost::graph_traits<Structure>::adjacency_iterator adjIt;
+
+    // count is as follows:
+    //  - for a subgraph the total number of vertices
+    //  - for a separator the total number of vertices minus the separator
+    //  - for a clique: the total number of vertices
+
+    // loop over all nodes
+    for(std::vector<NodeDescriptor>::const_iterator it = sorted.begin(); it != sorted.end(); ++it)
+    {
+        NodeDescriptor node = *it;
+        switch(nodeType(node))
+        {
+        case NODE_Subgraph:
+            checkSubgraphNode(node, countMap);
+            break;
+        case NODE_Separator:
+            checkSeparatorNode(node, countMap);
+            break;
+        case NODE_Clique:
+            checkCliqueNode(node, countMap);
+            break;
+        }
+    }
 }
 
-
-bool DecompositionDAG::hasSubgraphNode(const SubgraphNode & subgraphNode) const
+void DecompositionDAG::checkSubgraphNode(NodeDescriptor node, boost::unordered_map<NodeDescriptor, std::size_t> & countMap)
 {
-    return subgraphMap_.right.find(subgraphNode) != subgraphMap_.right.end();
+    typedef boost::graph_traits<Structure>::adjacency_iterator adjIt;
+
+    const SubgraphNodeData & data = *subgraphNodeData(node);
+    std::size_t count = data.activeVertices.size() + data.otherVertices.size();
+    countMap.insert(std::make_pair(node, count));
+
+    std::list<NodeDescriptor> toRemove;
+
+    // check whether we should remove any child clique nodes (because the count is of)
+    for(std::pair<adjIt, adjIt> p = boost::adjacent_vertices(node, dag_); p.first != p.second; ++p.first)
+    {
+        assert(nodeType(*p.first) == NODE_Clique);
+        assert(countMap.count(*p.first) != 0);
+        assert(countMap[*p.first] <= count);
+
+        if(count != countMap[*p.first])
+            toRemove.push_back(*p.first);
+    }
+
+    for(std::list<NodeDescriptor>::const_iterator it = toRemove.begin(); it != toRemove.end(); ++it)
+        cleanSubtree(*it, countMap);
+}
+
+void DecompositionDAG::checkSeparatorNode(NodeDescriptor node, boost::unordered_map<NodeDescriptor, std::size_t> & countMap)
+{
+    typedef boost::graph_traits<Structure>::adjacency_iterator adjIt;
+
+    const SeparatorNodeData & data = *separatorNodeData(node);
+
+    std::size_t count = 0;
+    for(std::pair<adjIt, adjIt> p = boost::adjacent_vertices(node, dag_); p.first != p.second; ++p.first)
+    {
+        assert(nodeType(*p.first) == NODE_Subgraph && countMap.count(*p.first) != 0);
+        count += countMap[*p.first];
+    }
+
+    if(count < data.separator.size())
+        cleanSubtree(node, countMap);
+    else
+        countMap.insert(std::make_pair(node, count - data.separator.size()));
+}
+
+void DecompositionDAG::checkCliqueNode(NodeDescriptor node, boost::unordered_map<NodeDescriptor, std::size_t> & countMap)
+{
+    typedef boost::graph_traits<Structure>::adjacency_iterator adjIt;
+
+    // get the clique size
+    std::size_t cliqueSize = cliqueMap_.find(node)->second.size();
+
+    std::size_t count = 0;
+    for(std::pair<adjIt, adjIt> p = boost::adjacent_vertices(node, dag_); p.first != p.second; ++p.first)
+    {
+        assert(nodeType(*p.first) == NODE_Separator);
+        assert(countMap.count(*p.first) != 0);
+        count += countMap[*p.first];
+    }
+
+    if(count < 1)
+        cleanSubtree(node, countMap);
+    else
+        countMap.insert(std::make_pair(node, count + cliqueSize));
+}
+
+void DecompositionDAG::cleanSubtree(NodeDescriptor node, boost::unordered_map<NodeDescriptor, std::size_t> & countMap)
+{
+    typedef boost::graph_traits<Structure>::vertex_iterator vit;
+    typedef boost::graph_traits<Structure>::adjacency_iterator adjIt;
+
+    // create a degree map for the nodes
+    boost::unordered_map<NodeDescriptor, std::size_t> outDegreeMap;
+    for(std::pair<vit, vit> p = boost::vertices(dag_); p.first != p.second; ++p.first)
+        outDegreeMap.insert(std::make_pair(*p.first, boost::in_degree(*p.first, dag_)));
+
+    // set the degree of the node to zero
+    outDegreeMap[node] = 1;
+    std::stack<NodeDescriptor> todo;
+    todo.push(node);
+
+    std::list<NodeDescriptor> toRemove;
+
+    // process a stack
+    while(!todo.empty())
+    {
+        NodeDescriptor curNode = todo.top();
+        todo.pop();
+
+        // check the counter
+        std::size_t & curD = outDegreeMap[curNode];
+
+        // decrease the counter
+        --curD;
+
+        // last time in the stack, all parents seen so process
+        if(curD == 0)
+        {
+            // schedule this node for removal
+            toRemove.push_back(curNode);
+
+            // add the children to the list
+            for(std::pair<adjIt, adjIt> p = boost::adjacent_vertices(curNode, dag_); p.first != p.second; ++p.first)
+                todo.push(*p.first);
+        }
+    }
+
+    // okay, all nodes in to remove can be removed
+    for(std::list<NodeDescriptor>::const_iterator it = toRemove.begin(); it != toRemove.end(); ++it)
+    {
+        boost::clear_vertex(*it, dag_);
+        boost::remove_vertex(*it, dag_);
+    }
 }
 
 
