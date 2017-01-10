@@ -6,6 +6,29 @@
 namespace treeDAG {
 namespace {
 
+typedef DecompositionDAG::VertexSet VertexSet;
+bool isSubset(const VertexSet & possibleSubset, const VertexSet & possibleSuperset)
+{
+    VertexSet::const_iterator subIt = possibleSubset.begin();
+    VertexSet::const_iterator supIt = possibleSuperset.begin();
+
+    while(subIt != possibleSubset.end() && supIt != possibleSuperset.end())
+    {
+        // *subit does not occur in the superset
+        if(*subIt < *supIt)
+            return false;
+
+        // if they are equal, we need to increase both
+        if(*subIt == *supIt)
+            ++subIt;
+
+        // anyhow, increate the supper iterator
+        ++supIt;
+    }
+
+    return subIt == possibleSubset.end();
+}
+
 template <typename Iterator>
 struct IteratorStreamer
 {
@@ -276,6 +299,9 @@ void DecompositionDAG::cleanUp()
             break;
         }
     }
+
+    // and now clean the parallel edges
+    cleanupParallelEdges();
 }
 
 void DecompositionDAG::checkSubgraphNode(NodeDescriptor node, boost::unordered_map<NodeDescriptor, std::size_t> & countMap)
@@ -300,7 +326,7 @@ void DecompositionDAG::checkSubgraphNode(NodeDescriptor node, boost::unordered_m
     }
 
     for(std::list<NodeDescriptor>::const_iterator it = toRemove.begin(); it != toRemove.end(); ++it)
-        cleanSubtree(*it, countMap);
+        cleanSubtree(*it);
 }
 
 void DecompositionDAG::checkSeparatorNode(NodeDescriptor node, boost::unordered_map<NodeDescriptor, std::size_t> & countMap)
@@ -317,7 +343,7 @@ void DecompositionDAG::checkSeparatorNode(NodeDescriptor node, boost::unordered_
     }
 
     if(count < data.separator.size())
-        cleanSubtree(node, countMap);
+        cleanSubtree(node);
     else
         countMap.insert(std::make_pair(node, count - data.separator.size()));
 }
@@ -338,12 +364,12 @@ void DecompositionDAG::checkCliqueNode(NodeDescriptor node, boost::unordered_map
     }
 
     if(count < 1)
-        cleanSubtree(node, countMap);
+        cleanSubtree(node);
     else
         countMap.insert(std::make_pair(node, count + cliqueSize));
 }
 
-void DecompositionDAG::cleanSubtree(NodeDescriptor node, boost::unordered_map<NodeDescriptor, std::size_t> & countMap)
+void DecompositionDAG::cleanSubtree(NodeDescriptor node)
 {
     typedef boost::graph_traits<Structure>::vertex_iterator vit;
     typedef boost::graph_traits<Structure>::adjacency_iterator adjIt;
@@ -369,7 +395,7 @@ void DecompositionDAG::cleanSubtree(NodeDescriptor node, boost::unordered_map<No
         // check the counter
         std::size_t & curD = outDegreeMap[curNode];
 
-        // decrease the counter
+        // increase the counter
         --curD;
 
         // last time in the stack, all parents seen so process
@@ -390,6 +416,110 @@ void DecompositionDAG::cleanSubtree(NodeDescriptor node, boost::unordered_map<No
         boost::clear_vertex(*it, dag_);
         boost::remove_vertex(*it, dag_);
     }
+}
+
+void DecompositionDAG::cleanupParallelEdges()
+{
+    typedef boost::graph_traits<Structure>::vertex_iterator vit;
+    typedef std::pair<NodeDescriptor, NodeDescriptor>SubgraphCliquePair;
+    typedef boost::graph_traits<Structure>::adjacency_iterator adjIt;
+
+    std::list<SubgraphCliquePair > toConsider;
+
+    // loop over all subgraph nodes
+    for(std::pair<vit,vit> p = boost::vertices(dag_); p.first != p.second; ++p.first)
+    {
+        // only subgraph nodes
+        NodeDescriptor node = *p.first;
+        if(nodeType(node) != NODE_Subgraph)
+            continue;
+
+        const SubgraphNodeData & data = *subgraphNodeData(node);
+
+        // consider all attached cliques
+        for(std::pair<adjIt, adjIt> pc = boost::adjacent_vertices(node, dag_); pc.first != pc.second; ++pc.first)
+        {
+            // get the clique
+            const VertexSet & clique = cliqueMap_.find(*pc.first)->second;
+
+            if(clique.size() > data.activeVertices.size() + 1)
+                toConsider.push_back(std::make_pair(node, *pc.first));
+        }
+    }
+
+    std::list<NodeDescriptor> toRemove;
+
+    // and now process them
+    for(std::list<SubgraphCliquePair >::const_iterator it =  toConsider.begin(); it != toConsider.end(); ++it)
+        if(hasSmallerTreewidthParallelEdge(it->first, it->second))
+            toRemove.push_back(it->second);
+
+    // remove everything unneccairy
+    for(std::list<NodeDescriptor>::const_iterator it = toRemove.begin(); it != toRemove.end(); ++it)
+        cleanSubtree(*it);
+}
+
+bool DecompositionDAG::hasSmallerTreewidthParallelEdge(NodeDescriptor subgraphNode, NodeDescriptor cliqueNode) const
+{
+    typedef boost::graph_traits<Structure>::adjacency_iterator adjIt;
+
+    // all the necessary information
+    const VertexSet & clique = cliqueMap_.find(cliqueNode)->second;
+
+    // get all the separator nodes attached to the clique
+    boost::unordered_set<NodeDescriptor> attachedSeparators;
+    for(std::pair<adjIt, adjIt> p = boost::adjacent_vertices(cliqueNode, dag_); p.first != p.second; ++p.first)
+        attachedSeparators.insert(*p.first);
+
+    // create a stack to process
+    std::stack<NodeDescriptor> todo;
+    boost::unordered_set<NodeDescriptor> processed;
+    todo.push(subgraphNode);
+
+    while(!todo.empty())
+    {
+        // get the node
+        NodeDescriptor cur = todo.top();
+        todo.pop();
+
+        // first time this node?
+        if(!processed.insert(cur).second)
+            continue;
+
+        assert(nodeType(cur) == NODE_Subgraph);
+
+        // loop over the clique nodes adjacent to this subgraph
+        for(std::pair<adjIt, adjIt> pc = boost::adjacent_vertices(cur, dag_); pc.first != pc.second; ++pc.first)
+        {
+            // get the clique
+            NodeDescriptor nClique = *pc.first;
+            const VertexSet & dClique = cliqueMap_.find(nClique)->second;
+
+            // the clique should be a strict subset
+            if(dClique.size() >= clique.size() || !isSubset(dClique, clique))
+                continue;
+
+            // first loop over all attached to this clique
+            for(std::pair<adjIt, adjIt> ps = boost::adjacent_vertices(nClique, dag_); ps.first != ps.second; ++ps.first)
+            {
+                NodeDescriptor nSeparator = *ps.first;
+
+                // remove if it was attached
+                attachedSeparators.erase(nSeparator);
+
+                // maybe we have finished
+                if(attachedSeparators.empty())
+                    return true;
+
+                // consider all the attached subgraphs
+                for(std::pair<adjIt, adjIt> pg = boost::adjacent_vertices(nSeparator, dag_); pg.first != pg.second; ++pg.first)
+                    todo.push(*pg.first);
+            }
+        }
+    }
+
+    return false;
+
 }
 
 

@@ -104,7 +104,6 @@ int main(int argc, char ** argv)
 
         std::vector<unsigned char> roots;
         roots.push_back(0);
-        roots.push_back(1);
 
         decomposer.process(roots.begin(), roots.end());
         t.stop();

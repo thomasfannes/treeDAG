@@ -96,7 +96,10 @@ private:
     void checkCliqueNode(NodeDescriptor node, boost::unordered_map<NodeDescriptor, std::size_t> & countMap);
     void checkSeparatorNode(NodeDescriptor node, boost::unordered_map<NodeDescriptor, std::size_t> & countMap);
     void checkSubgraphNode(NodeDescriptor node, boost::unordered_map<NodeDescriptor, std::size_t> & countMap);
-    void cleanSubtree(NodeDescriptor node, boost::unordered_map<NodeDescriptor, std::size_t> & countMap);
+    void cleanSubtree(NodeDescriptor node);
+    void cleanupParallelEdges();
+
+    bool hasSmallerTreewidthParallelEdge(NodeDescriptor subgraphNode, NodeDescriptor cliqueNode) const;
 
 
     Structure dag_;
