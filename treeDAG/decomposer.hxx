@@ -52,7 +52,7 @@ void Decomposer::process(VertexIterator firstRoot, VertexIterator lastRoot)
         process(nd);
     }
 
-    dag_.cleanUp();
+    //dag_.cleanUp();
 }
 
 } // namespace treeDAG

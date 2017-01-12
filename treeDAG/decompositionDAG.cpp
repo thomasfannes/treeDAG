@@ -166,6 +166,43 @@ DecompositionDAG::NodeDescriptor DecompositionDAG::addSubgraph(const SubgraphNod
     return nd;
 }
 
+void DecompositionDAGNodeStreamWriter::toStream(std::ostream & stream) const
+{
+    if(dag_ == 0)
+        throw std::logic_error("DecompositionDAGNodeStreamWriter: initialized without a valid decomposition DAG object");
+
+    const DecompositionDAG & dag = *dag_;
+
+    switch (dag.nodeType(node_)) {
+    case DecompositionDAG::NODE_Clique:
+        stream << "C(" << make_streamer(dag.cliqueMap_.find(node_)->second) << ")";
+        break;
+
+    case DecompositionDAG::NODE_Separator:
+        stream << dag.separatorMap_.left.find(node_)->second;
+        break;
+
+    case DecompositionDAG::NODE_Subgraph:
+        stream << dag.subgraphMap_.left.find(node_)->second;
+        break;
+    }
+}
+
+std::ostream & operator<<(std::ostream & stream, const DecompositionDAGNodeStreamWriter & writer)
+{
+    writer.toStream(stream);
+    return stream;
+}
+
+DecompositionDAGNodeStreamWriter DecompositionDAG::nodeWriter(NodeDescriptor node) const
+{
+    DecompositionDAGNodeStreamWriter w;
+    w.node_ = node;
+    w.dag_ = this;
+
+    return w;
+}
+
 void DecompositionDAG::write_dot(std::ostream & stream) const
 {
     typedef boost::graph_traits<Structure>::vertex_iterator vit;
@@ -183,33 +220,11 @@ void DecompositionDAG::write_dot(std::ostream & stream) const
     for(std::pair<vit, vit> p = boost::vertices(dag_); p.first != p.second; ++p.first)
     {
         NodeDescriptor node = *p.first;
-        NodeType type = nodeType(node);
 
         // start the line
-        stream << "  v" << curIndex << " [label=\"";
-
-        // which type of node
-        switch(type)
-        {
-        case NODE_Subgraph:
-            stream << subgraphMap_.left.find(node)->second;
-            break;
-
-        case NODE_Separator:
-            stream << separatorMap_.left.find(node)->second;
-            break;
-
-        case NODE_Clique:
-            stream << "C(" << make_streamer(cliqueMap_.find(node)->second) << ")";
-            break;
-
-        default:
-            assert(0);
-        }
+        stream << "  v" << curIndex << " [label=\"" << nodeWriter(node) << "\"];" << std::endl;
 
         // end the line
-        stream << "\"];" << std::endl;
-
         // store in the index map
         nodeIndexMap.insert(std::make_pair(node, curIndex++));
     }
@@ -260,6 +275,7 @@ DecompositionDAG::NodeDescriptor DecompositionDAG::findOrCreateSubgraphNode(cons
 void DecompositionDAG::cleanUp()
 {
     typedef boost::graph_traits<Structure>::vertex_iterator vit;
+    typedef boost::graph_traits<Structure>::adjacency_iterator adjIt;
 
     // start by creating a topological sort
     std::size_t curIndex = 0;
@@ -275,7 +291,6 @@ void DecompositionDAG::cleanUp()
     boost::unordered_map<NodeDescriptor, std::size_t> countMap;
 
 
-    typedef boost::graph_traits<Structure>::adjacency_iterator adjIt;
 
     // count is as follows:
     //  - for a subgraph the total number of vertices
@@ -375,16 +390,16 @@ void DecompositionDAG::cleanSubtree(NodeDescriptor node)
     typedef boost::graph_traits<Structure>::adjacency_iterator adjIt;
 
     // create a degree map for the nodes
-    boost::unordered_map<NodeDescriptor, std::size_t> outDegreeMap;
-    for(std::pair<vit, vit> p = boost::vertices(dag_); p.first != p.second; ++p.first)
-        outDegreeMap.insert(std::make_pair(*p.first, boost::in_degree(*p.first, dag_)));
+    boost::unordered_map<NodeDescriptor, std::size_t> inDegreeMap;
 
     // set the degree of the node to zero
-    outDegreeMap[node] = 1;
+    inDegreeMap[node] = 1;
     std::stack<NodeDescriptor> todo;
     todo.push(node);
 
     std::list<NodeDescriptor> toRemove;
+
+    std::size_t processed = 0;
 
     // process a stack
     while(!todo.empty())
@@ -392,8 +407,15 @@ void DecompositionDAG::cleanSubtree(NodeDescriptor node)
         NodeDescriptor curNode = todo.top();
         todo.pop();
 
+        ++processed;
+
+        // have we already seen this node?
+        boost::unordered_map<NodeDescriptor, std::size_t>::iterator it = inDegreeMap.find(curNode);
+        if(it == inDegreeMap.end())
+            it = inDegreeMap.insert(std::make_pair(curNode, boost::in_degree(curNode, dag_))).first;
+
         // check the counter
-        std::size_t & curD = outDegreeMap[curNode];
+        std::size_t & curD = it->second;
 
         // increase the counter
         --curD;

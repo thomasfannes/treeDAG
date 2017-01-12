@@ -36,7 +36,7 @@ bool operator==(const SubgraphNodeData & lhs, const SubgraphNodeData & rhs);
 std::ostream & operator<<(std::ostream & str, const SeparatorNodeData & separatorNode);
 std::ostream & operator<<(std::ostream & str, const SubgraphNodeData & separatorNode);
 
-
+struct DecompositionDAGNodeStreamWriter;
 
 class DecompositionDAG : public boost::noncopyable, public SeparatorConfig
 {
@@ -49,8 +49,9 @@ public:
 
     };
 
-    typedef boost::adjacency_list<boost::listS, boost::listS, boost::bidirectionalS, NodeType>                              Structure;
+    typedef boost::adjacency_list<boost::hash_setS, boost::listS, boost::bidirectionalS, NodeType>                              Structure;
     typedef boost::graph_traits<Structure>::vertex_descriptor                                                               NodeDescriptor;
+
 
     // output methods
     void write_dot(std::ostream & stream) const;
@@ -78,12 +79,16 @@ public:
     std::size_t numberOfNodes() const { return boost::num_vertices(dag_); }
     std::size_t numberOfBranches() const { return boost::num_edges(dag_); }
 
+    DecompositionDAGNodeStreamWriter nodeWriter(NodeDescriptor node) const;
+
 
 
     static NodeDescriptor InvalidNode() { return boost::graph_traits<Structure>::null_vertex(); }
 
 
 private:
+    friend class DecompositionDAGNodeStreamWriter;
+
     typedef boost::bimap<boost::bimaps::unordered_set_of<NodeDescriptor>, boost::bimaps::unordered_set_of<SubgraphNodeData > >  SubgraphMap;
     typedef boost::bimap<boost::bimaps::unordered_set_of<NodeDescriptor>, boost::bimaps::unordered_set_of<SeparatorNodeData > > SeparatorMap;
     typedef boost::unordered_map<NodeDescriptor, VertexSet>                                                                     CliqueSizeMap;
@@ -106,6 +111,21 @@ private:
     SubgraphMap subgraphMap_;
     SeparatorMap separatorMap_;
     CliqueSizeMap cliqueMap_;
+};
+
+struct DecompositionDAGNodeStreamWriter
+{
+    DecompositionDAGNodeStreamWriter() : dag_(0) {}
+
+    friend std::ostream & operator<<(std::ostream & stream, const DecompositionDAGNodeStreamWriter & writer);
+
+private:
+    void toStream(std::ostream & stream) const;
+
+    friend class DecompositionDAG;
+
+    const DecompositionDAG * dag_;
+    DecompositionDAG::NodeDescriptor node_;
 };
 
 
