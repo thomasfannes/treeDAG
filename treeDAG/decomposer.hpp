@@ -29,7 +29,7 @@ private:
     void tryClique(DecompositionDAG::NodeDescriptor subgraphNode, const VertexSet & oldVertices, const VertexSet & newVertices, boost::unordered_set<UsedSeparatorNodeSet> & cache);
     void trySeparator(const VertexSet & possibleSeparator, const VertexSet & clique, UsedSeparatorNodeSet & usedSeparators);
 
-    void processRoot(DecompositionDAG::NodeDescriptor node);
+    void processRoot();
 
     DecompositionDAG::NodeDescriptor addSeparatorNode(const Separation & separation, const VertexSet & inactiveIndex);
     SubgraphNodeData createSubgraphNodeData(const VertexSet & separator, const VertexSet & component);

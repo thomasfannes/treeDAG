@@ -464,7 +464,7 @@ void DecompositionDAG::cleanupParallelEdges()
             // get the clique
             const VertexSet & clique = cliqueMap_.find(*pc.first)->second;
 
-            if(clique.size() > data.activeVertices.size() + 1)
+            if(clique.size() > data.activeVertices.size())
                 toConsider.push_back(std::make_pair(node, *pc.first));
         }
     }

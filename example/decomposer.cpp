@@ -104,19 +104,20 @@ int main(int argc, char ** argv)
 
         std::vector<unsigned char> roots;
         roots.push_back(0);
+        roots.push_back(1);
 
         decomposer.process(roots.begin(), roots.end());
         t.stop();
 
         std::cout << sz << ";" << decomposer.decompositionDAG().numberOfNodes() << ";" << decomposer.decompositionDAG().numberOfBranches() << ";" << t.elapsed().wall << std::endl;
 
-//        std::stringstream filename;
-//        filename << "test_" << sz << ".dot";
+        std::stringstream filename;
+        filename << "test_" << sz << ".dot";
 
-//        std::ofstream ofs;
-//        ofs.open(filename.str().c_str());
+        std::ofstream ofs;
+        ofs.open(filename.str().c_str());
 
-//        decomposer.writeDot(ofs);
+        decomposer.writeDot(ofs);
     }
 }
 

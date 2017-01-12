@@ -1,5 +1,5 @@
 #include "separatorCache.hpp"
-#include "util/kOrderedPermutateIterator.hpp"
+#include "util/nChooseKIterator.hpp"
 #include "separator.hpp"
 
 namespace treeDAG {
@@ -23,7 +23,7 @@ void SeparatorCache::initialize()
 {    
     // initialize for all possible permutations of graph vertices
     typedef boost::graph_traits<Graph>::vertex_iterator Vit;
-    typedef util::KOrderedPermutateIterator<typename std::vector<VertexIndexType>::iterator> PermIter;
+    typedef util::NChooseKIterator<typename std::vector<VertexIndexType>::iterator> CombIter;
 
     // store all the graph vertices
     VertexSet graphVertices;
@@ -32,8 +32,11 @@ void SeparatorCache::initialize()
 
     // loop over all permutations of (graphSize choose curK)
     for(std::size_t curK = 1; curK <= k_; ++curK)
-        for(std::pair<PermIter, PermIter> p = util::make_k_ordered_permutate_range(graphVertices.begin(), graphVertices.end(), curK); p.first != p.second; ++p.first)
+        for(std::pair<CombIter, CombIter> p = util::make_n_choose_k_iterators(graphVertices.begin(), graphVertices.end(), curK); p.first != p.second; ++p.first)
+        {
+            const std::vector<VertexIndexType> & vct = *p.first;
             processPossibleSeparator(*p.first);
+        }
 }
 
 

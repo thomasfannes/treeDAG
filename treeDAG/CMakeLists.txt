@@ -52,9 +52,21 @@ set(SOURCES
 
   #detail/config.hpp
   #detail/separatorConfig.hpp
-  util/kOrderedPermutateIterator.hpp
+  util/maskedRangeIterator.hpp
+  util/maskedRangeIterator.hxx
+  util/maskedRangeProxy.hpp
+  util/maskedRangeProxy.hxx
+
   util/combinationIterator.hpp
   util/combinationIterator.hxx
+  util/combinationIterator.cpp
+
+  util/nChooseKIterator.hpp
+  util/nChooseKIterator.hxx
+  util/nChooseKIterator.cpp
+
+
+
   util/tvsArray.hpp
   util/tvsArray.hxx
 

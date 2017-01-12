@@ -2,9 +2,6 @@
 #define TREEDAG_DECOMPOSER_HXX
 
 #include "decomposer.hpp"
-#include "util/kOrderedPermutateIterator.hpp"
-#include "util/combination.hpp"
-#include <iostream>
 
 
 namespace treeDAG {
@@ -16,27 +13,7 @@ void Decomposer::process(VertexIterator firstRoot, VertexIterator lastRoot)
     std::set<VertexIndexType> roots(firstRoot, lastRoot);
     roots_.assign(roots.begin(), roots.end());
 
-    // create the root assignment
-    SubgraphNodeData data;
-    std::size_t graphSize = boost::num_vertices(*graph_);
-    VertexSet::const_iterator sepIt = roots_.begin();
-
-    // loop over all vertices
-    for(std::size_t curV = 0; curV < graphSize; ++curV)
-    {
-        // distribute between other and active vertices
-        if(sepIt == roots_.end() || *sepIt > curV)
-            data.otherVertices.push_back(curV);
-        else
-        {
-            data.activeVertices.push_back(*sepIt);
-            ++sepIt;
-        }
-    }
-
-    // create the subgraph node
-    DecompositionDAG::NodeDescriptor nd = dag_.addSubgraph(data);
-    todo_.push(nd);
+    processRoot();
 
     while(!todo_.empty())
     {
@@ -52,7 +29,7 @@ void Decomposer::process(VertexIterator firstRoot, VertexIterator lastRoot)
         process(nd);
     }
 
-    //dag_.cleanUp();
+    dag_.cleanUp();
 }
 
 } // namespace treeDAG

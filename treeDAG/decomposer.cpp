@@ -1,6 +1,6 @@
 
 #include "decomposer.hpp"
-#include "util/kOrderedPermutateIterator.hpp"
+#include "util/nChooseKIterator.hpp"
 #include "util/combinationIterator.hpp"
 
 
@@ -30,6 +30,51 @@ void Decomposer::writeDot(std::ostream & stream) const
     dag_.write_dot(stream);
 }
 
+void Decomposer::processRoot()
+{
+    typedef util::NChooseKIterator<VertexSet::const_iterator> it;
+
+    // create the root graph
+    SubgraphNodeData data;
+    const std::size_t graphSize = boost::num_vertices(*graph_);
+    VertexSet::const_iterator sepIt = roots_.begin();
+
+    // loop over all vertices
+    for(std::size_t curV = 0; curV < graphSize; ++curV)
+    {
+        // distribute between other and active vertices
+        if(sepIt == roots_.end() || *sepIt > curV)
+            data.otherVertices.push_back(curV);
+        // it is an active vertex
+        else
+            data.activeVertices.push_back(*sepIt++);
+    }
+
+    DecompositionDAG::NodeDescriptor node = dag_.addSubgraph(data);
+
+    // storage for the already added
+    boost::unordered_set<UsedSeparatorNodeSet> addedCliqueNodes;
+
+    // loop over all combinations
+    const std::size_t rootSize = roots_.size();
+    const std::size_t maxToAdd = k_ + 1 - rootSize;
+    const VertexSet & otherVertices = data.otherVertices;
+
+    for(std::size_t extraCount = 0; extraCount <= maxToAdd; ++extraCount)
+    {
+        for(std::pair<it, it> p = util::make_n_choose_k_iterators(otherVertices.begin(), otherVertices.end(), extraCount); p.first != p.second; ++p.first)
+        {
+            const VertexSet & extraVertices = *p.first;
+
+            VertexSet newClique(rootSize + extraCount);
+            std::merge(data.activeVertices.begin(), data.activeVertices.end(), extraVertices.begin(), extraVertices.end(), newClique.begin());
+
+            tryClique(node, VertexSet(), newClique, addedCliqueNodes);
+        }
+    }
+
+}
+
 void Decomposer::process(DecompositionDAG::NodeDescriptor node)
 {
     boost::unordered_set<UsedSeparatorNodeSet> addedCliqueNodes;
@@ -42,7 +87,8 @@ void Decomposer::process(DecompositionDAG::NodeDescriptor node)
     assert(toAdd > 0);
 
     // loop over all possible nodes to add
-    typedef util::KOrderedPermutateIterator<VertexSet::const_iterator> it;
+    typedef util::NChooseKIterator<VertexSet::const_iterator> it;
+
 
     // we will try clique sizes from activecount+1 -> k + 1
     for(std::size_t cur = 1; cur <= toAdd; ++cur)
@@ -51,7 +97,7 @@ void Decomposer::process(DecompositionDAG::NodeDescriptor node)
         if(data.otherVertices.size() <= cur)
             break;
 
-        for(std::pair<it, it> p = util::make_k_ordered_permutate_range(data.otherVertices.begin(), data.otherVertices.end(), cur); p.first != p.second; ++p.first)
+        for(std::pair<it, it> p = util::make_n_choose_k_iterators(data.otherVertices.begin(), data.otherVertices.end(), cur); p.first != p.second; ++p.first)
             tryClique(node, data.activeVertices, *p.first, addedCliqueNodes);
     }
 }
